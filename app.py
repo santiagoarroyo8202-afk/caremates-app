@@ -26,7 +26,36 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 scheduler = BackgroundScheduler(daemon=True)
+
+def revisar_y_enviar_recordatorios():
+    """Revisa cada minuto si hay turnos en 15 min y manda WhatsApp"""
+    print("🔍 Revisando recordatorios...")
+    with app.app_context():
+        ahora = datetime.utcnow()
+        en_15_min = ahora + timedelta(minutes=15)
+
+        pacientes = Paciente.query.join(Cuidador).filter(Cuidador.telefono!= None).all()
+
+        for p in pacientes:
+            for h in p.historias:
+                if "Turno agendado:" in h.nota and "| FECHA:" in h.nota and " | ENVIADO" not in h.nota:
+                    try:
+                        fecha_str = h.nota.split("| FECHA:")[1].strip()
+                        fecha_turno = datetime.fromisoformat(fecha_str)
+
+                        if abs((fecha_turno - en_15_min).total_seconds()) < 60:
+                            titulo = h.nota.split(":")[1].split("-")[0].strip()
+                            mensaje = preguntar_ia(titulo, "")
+                            if enviar_whatsapp(mensaje, p.cuidador.telefono):
+                                h.nota = h.nota + " | ENVIADO"
+                                db.session.commit()
+                                print(f"✅ Recordatorio enviado a {p.nombre}")
+                    except:
+                        pass
+
+scheduler.add_job(revisar_y_enviar_recordatorios, 'interval', minutes=1)
 scheduler.start()
+print("✅ Scheduler iniciado - revisa cada 1 min")
 
 @app.route("/", methods=["GET"])
 def home():
@@ -373,13 +402,12 @@ def agendar_turno(id):
         creds = get_credentials()
         service = build('calendar', 'v3', credentials=creds)
         service.events().insert(calendarId='primary', body=evento).execute()
-        h = Historia(nota=f"Turno agendado: {titulo} - {desc}", paciente_id=id)
+        h = Historia(nota=f"Turno agendado: {titulo} - {desc} | FECHA:{fecha_dt.isoformat()}", paciente_id=id)
         db.session.add(h)
         db.session.commit()
         hora_aviso = fecha_dt - timedelta(minutes=15)
         mensaje_ia = preguntar_ia(titulo, desc)
         telefono_cuidador = current_user.cuidador.telefono
-        scheduler.add_job(lambda tel=telefono_cuidador, msg=mensaje_ia: enviar_whatsapp(msg, tel), 'date', run_date=hora_aviso)
         flash(f'Turno agendado. Te aviso 15 min antes por WhatsApp')
         return redirect(url_for('ver_paciente', id=id))
     html = f'<h2>Agendar Turno para {p.nombre}</h2><form method="POST"><input name="titulo" placeholder="Título" required><input name="fecha" type="datetime-local" required><textarea name="desc"></textarea><button>Agendar Turno</button></form>'
