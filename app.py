@@ -1,5 +1,4 @@
 import os
-from datetime import datetime, timedelta
 from flask import Flask, render_template_string, request, redirect, url_for, flash, session, Response
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -15,6 +14,7 @@ from dotenv import load_dotenv
 import requests
 import json
 from werkzeug.middleware.proxy_fix import ProxyFix
+from datetime import datetime, timedelta, timezone
 
 load_dotenv()
 app = Flask(__name__)
@@ -31,7 +31,7 @@ def revisar_y_enviar_recordatorios():
     """Revisa cada minuto si hay turnos en 15 min y manda WhatsApp"""
     print("🔍 Revisando recordatorios...")
     with app.app_context():
-        ahora = datetime.now()
+       ahora = datetime.now(timezone(timedelta(hours=-3)))  # GMT-3 Jujuy
         en_15_min = ahora + timedelta(minutes=15)
 
         pacientes = Paciente.query.join(Cuidador).filter(Cuidador.telefono!= None).all()
@@ -43,15 +43,15 @@ def revisar_y_enviar_recordatorios():
                         fecha_str = h.nota.split("| FECHA:")[1].strip()
                         fecha_turno = datetime.fromisoformat(fecha_str)
 
-                        if abs((fecha_turno - en_15_min).total_seconds()) < 60:
+                        if 0 <= (fecha_turno - ahora).total_seconds() <= 900:  # 900 seg = 15 min
                             titulo = h.nota.split(":")[1].split("-")[0].strip()
                             mensaje = preguntar_ia(titulo, "")
                             if enviar_whatsapp(mensaje, p.cuidador.telefono):
                                 h.nota = h.nota + " | ENVIADO"
                                 db.session.commit()
                                 print(f"✅ Recordatorio enviado a {p.nombre}")
-                    except:
-                        pass
+                   except Exception as e:
+    print(f"❌ Error historia {h.id}: {e}")
 
 scheduler.add_job(revisar_y_enviar_recordatorios, 'interval', minutes=1)
 scheduler.start()
