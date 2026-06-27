@@ -6,6 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import Flow
 from apscheduler.schedulers.background import BackgroundScheduler
 from twilio.rest import Client
@@ -53,6 +54,8 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
+    google_token = db.Column(db.String(500))  # <-- AGREGAR
+    google_refresh_token = db.Column(db.String(500))  # <-- AGREGAR
     cuidador = db.relationship('Cuidador', backref='user', uselist=False)
 
 class Cuidador(db.Model):
@@ -95,10 +98,27 @@ def load_user(user_id):
 SCOPES = ['https://www.googleapis.com/auth/calendar.events']
 
 def get_credentials():
-    if 'google_creds' in session:
-        creds_data = json.loads(session['google_creds'])
-        return Credentials(**creds_data)
-    return None
+    if not current_user.is_authenticated:
+        return None
+    
+    if not current_user.google_token:
+        return None
+    
+    creds = Credentials(
+        token=current_user.google_token,
+        refresh_token=current_user.google_refresh_token,
+        token_uri='https://oauth2.googleapis.com/token',
+        client_id=json.loads(os.getenv('GOOGLE_CREDENTIALS_JSON'))['web']['client_id'],
+        client_secret=json.loads(os.getenv('GOOGLE_CREDENTIALS_JSON'))['web']['client_secret'],
+        scopes=SCOPES
+    )
+    
+    if creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+        current_user.google_token = creds.token
+        db.session.commit()
+    
+    return creds
 
 def limpiar_tel(tel):
     return tel.replace("+549","").replace("+54","").replace(" ","").replace("-","")
@@ -152,18 +172,49 @@ def registro():
 @app.route('/conectar_google')
 @login_required
 def conectar_google():
-    flow = Flow.from_client_secrets_file('credentials.json', scopes=SCOPES, redirect_uri=url_for('oauth_callback', _external=True, _scheme='https'))
+    import json
+    import os
+    from google_auth_oauthlib.flow import Flow
+    
+    SCOPES = ['https://www.googleapis.com/auth/calendar.events']
+    
+    # Cargar credenciales desde variable de entorno
+    creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
+    creds_data = json.loads(creds_json)
+    
+    flow = Flow.from_client_config(
+        creds_data, 
+        scopes=SCOPES, 
+        redirect_uri=url_for('oauth_callback', _external=True, _scheme='https')
+    )
     auth_url, _ = flow.authorization_url(access_type='offline', prompt='consent')
     return redirect(auth_url)
 
 @app.route('/oauth_callback')
+@login_required
 def oauth_callback():
-    flow = Flow.from_client_secrets_file('credentials.json', scopes=SCOPES, redirect_uri=url_for('oauth_callback', _external=True, _scheme='https'))
+    
+    SCOPES = ['https://www.googleapis.com/auth/calendar.events']
+    
+    # Cargar credenciales desde variable de entorno
+    creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
+    creds_data = json.loads(creds_json)
+    
+    flow = Flow.from_client_config(
+        creds_data, 
+        scopes=SCOPES, 
+        redirect_uri=url_for('oauth_callback', _external=True, _scheme='https')
+    )
     flow.fetch_token(authorization_response=request.url)
+    
     creds = flow.credentials
-    session['google_creds'] = json.dumps({'token': creds.token, 'refresh_token': creds.refresh_token, 'token_uri': creds.token_uri, 'client_id': creds.client_id, 'client_secret': creds.client_secret, 'scopes': creds.scopes})
+    # Guardar token en DB
+    current_user.google_token = creds.token
+    current_user.google_refresh_token = creds.refresh_token
+    db.session.commit()
+    
     flash('Google Calendar conectado ✅')
-    return redirect(url_for('dashboard'))
+    return redirect(url_for('configuracion'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
