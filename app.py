@@ -102,8 +102,8 @@ class Paciente(db.Model):
     tel_emergencia2 = db.Column(db.String(20))
     tel_emergencia3 = db.Column(db.String(20))
     cuidador_id = db.Column(db.Integer, db.ForeignKey('cuidador.id'))
+    cuidador = db.relationship('Cuidador', backref='pacientes')  # <-- ESTA LÍNEA NUEVA
     historias = db.relationship('Historia', backref='paciente', lazy=True, order_by='Historia.fecha.desc()')
-    medicamentos = db.relationship('Medicamento', backref='paciente', lazy=True)
 
 class Historia(db.Model):
     id = db.Column(db.Integer, primary_key=True)
