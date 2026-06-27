@@ -51,7 +51,7 @@ def revisar_y_enviar_recordatorios():
                                 db.session.commit()
                                 print(f"✅ Recordatorio enviado a {p.nombre}")
                    except Exception as e:
-    print(f"❌ Error historia {h.id}: {e}")
+                        print(f"❌ Error historia {h.id}: {e}")
 
 scheduler.add_job(revisar_y_enviar_recordatorios, 'interval', minutes=1)
 scheduler.start()
