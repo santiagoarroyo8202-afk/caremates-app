@@ -38,7 +38,7 @@ def revisar_y_enviar_recordatorios():
                 if "Turno agendado:" in h.nota and "| FECHA:" in h.nota and " | ENVIADO" not in h.nota:
                     try:
                         fecha_str = h.nota.split("| FECHA:")[1].strip()
-                        fecha_turno = datetime.fromisoformat(fecha_str)
+                        fecha_turno = datetime.fromisoformat(fecha_str).replace(tzinfo=timezone(timedelta(hours=-3)))
                         if 0 <= (fecha_turno - ahora).total_seconds() <= 900:
                             titulo = h.nota.split(":")[1].split("-")[0].strip()
                             mensaje = preguntar_ia(titulo, "")
