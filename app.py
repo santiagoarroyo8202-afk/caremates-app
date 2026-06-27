@@ -28,30 +28,26 @@ login_manager.login_view = 'login'
 scheduler = BackgroundScheduler(daemon=True)
 
 def revisar_y_enviar_recordatorios():
-    """Revisa cada minuto si hay turnos en 15 min y manda WhatsApp"""
-    print("🔍 Revisando recordatorios...")
+    print("Revisando recordatorios...")
     with app.app_context():
-       ahora = datetime.now(timezone(timedelta(hours=-3)))  # GMT-3 Jujuy
+        ahora = datetime.now(timezone(timedelta(hours=-3)))
         en_15_min = ahora + timedelta(minutes=15)
-
         pacientes = Paciente.query.join(Cuidador).filter(Cuidador.telefono!= None).all()
-
         for p in pacientes:
             for h in p.historias:
                 if "Turno agendado:" in h.nota and "| FECHA:" in h.nota and " | ENVIADO" not in h.nota:
                     try:
                         fecha_str = h.nota.split("| FECHA:")[1].strip()
                         fecha_turno = datetime.fromisoformat(fecha_str)
-
-                        if 0 <= (fecha_turno - ahora).total_seconds() <= 900:  # 900 seg = 15 min
+                        if 0 <= (fecha_turno - ahora).total_seconds() <= 900:
                             titulo = h.nota.split(":")[1].split("-")[0].strip()
                             mensaje = preguntar_ia(titulo, "")
                             if enviar_whatsapp(mensaje, p.cuidador.telefono):
                                 h.nota = h.nota + " | ENVIADO"
                                 db.session.commit()
-                                print(f"✅ Recordatorio enviado a {p.nombre}")
-                   except Exception as e:
-                          print(f"❌ Error historia {h.id}: {e}")
+                                print("Recordatorio enviado a " + p.nombre)
+                    except Exception as e:
+                        print("Error historia " + str(h.id) + ": " + str(e))
 
 scheduler.add_job(revisar_y_enviar_recordatorios, 'interval', minutes=1)
 scheduler.start()
