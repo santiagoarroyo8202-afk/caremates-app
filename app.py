@@ -81,7 +81,7 @@ class Paciente(db.Model):
 
 class Historia(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    fecha = db.Column(db.DateTime, default=lambda: datetime.now() - timedelta(hours=3))
+    fecha = db.Column(db.DateTime, default=datetime.utcnow)
     nota = db.Column(db.Text, nullable=False)
     paciente_id = db.Column(db.Integer, db.ForeignKey('paciente.id'), nullable=False)
 
