@@ -81,7 +81,7 @@ class Paciente(db.Model):
 
 class Historia(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha = db.Column(db.DateTime, default=lambda: datetime.now() - timedelta(hours=3))
     nota = db.Column(db.Text, nullable=False)
     paciente_id = db.Column(db.Integer, db.ForeignKey('paciente.id'), nullable=False)
 
@@ -342,7 +342,7 @@ def ver_paciente(id):
     p = Paciente.query.get_or_404(id)
     if p.cuidador_id!= current_user.cuidador.id:
         return "No autorizado", 403
-    historias = ''.join([f'<div class="historia-item"><b>{h.fecha.strftime("%d/%m %Y %H:%M")}</b><br>{h.nota}</div>' for h in p.historias])
+    historias = ''.join([f'<div class="historia-item"><b>{(h.fecha - timedelta(hours=3)).strftime("%d/%m %Y %H:%M")}</b><br>{h.nota}</div>' for h in p.historias])
     meds = ''.join([f'<div class="med-item">💊 {m.nombre} - {m.dosis} - {m.hora}hs</div>' for m in p.medicamentos])
     html = f'<h2>{p.nombre}</h2><p><b>Edad:</b> {p.edad} años | <b>DNI:</b> {p.dni}</p><p><b>Dirección:</b> {p.direccion or "-"} | <b>Obra Social:</b> {p.obrasocial or "-"}</p><div class="grid"><a href="/paciente/{id}/editar"><button class="secondary">✏️ Editar Datos</button></a><a href="/paciente/{id}/historia/nueva"><button>📝 Editar Historia</button></a><a href="/paciente/{id}/turno"><button>📅 Agendar Turno</button></a><a href="/paciente/{id}/medicamento"><button>💊 Registrar Medicamento</button></a><a href="/paciente/{id}/sos"><button class="danger">🚨 SOS Emergencia</button></a><button class="ia" onclick="abrirIA()">🤖 Consultar IA</button></div><h3>Medicamentos Programados</h3>{meds if meds else "<p>No hay medicamentos registrados</p>"}<h3>Historia Clínica</h3>{historias if historias else "<p>Sin registros aún</p>"}'
     return render_template_string(BASE, content=html)
