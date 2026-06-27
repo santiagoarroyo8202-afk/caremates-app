@@ -31,7 +31,6 @@ def revisar_y_enviar_recordatorios():
     print("Revisando recordatorios...")
     with app.app_context():
         ahora = datetime.now(timezone(timedelta(hours=-3)))
-        en_15_min = ahora + timedelta(minutes=15)
         pacientes = Paciente.query.filter(Paciente.cuidador_id!= None).all()
         for p in pacientes:
             for h in p.historias:
@@ -39,10 +38,12 @@ def revisar_y_enviar_recordatorios():
                     try:
                         fecha_str = h.nota.split("| FECHA:")[1].strip()
                         fecha_turno = datetime.fromisoformat(fecha_str).replace(tzinfo=timezone(timedelta(hours=-3)))
+
                         if 0 <= (fecha_turno - ahora).total_seconds() <= 900:
                             titulo = h.nota.split(":")[1].split("-")[0].strip()
                             mensaje = preguntar_ia(titulo, "")
-                            if enviar_whatsapp(mensaje, p.cuidador.telefono if p.cuidador else None):
+                            telefono = p.cuidador.telefono if p.cuidador and p.cuidador.telefono else None
+                            if telefono and enviar_whatsapp(mensaje, telefono):
                                 h.nota = h.nota + " | ENVIADO"
                                 db.session.commit()
                                 print("Recordatorio enviado a " + p.nombre)
