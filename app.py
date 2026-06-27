@@ -31,7 +31,7 @@ def revisar_y_enviar_recordatorios():
     """Revisa cada minuto si hay turnos en 15 min y manda WhatsApp"""
     print("🔍 Revisando recordatorios...")
     with app.app_context():
-        ahora = datetime.utcnow()
+        ahora = datetime.now()
         en_15_min = ahora + timedelta(minutes=15)
 
         pacientes = Paciente.query.join(Cuidador).filter(Cuidador.telefono!= None).all()
