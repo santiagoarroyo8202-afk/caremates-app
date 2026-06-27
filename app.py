@@ -234,12 +234,33 @@ def logout():
     return redirect(url_for('login'))
 @app.route('/manifest.json')
 def manifest():
-    manifest_data = {"name": "careMates - Tu Red de Apoyo", "short_name": "careMates", "description": "Gestión de pacientes y turnos para cuidadores", "start_url": "/", "display": "standalone", "background_color": "#2D7D7D", "theme_color": "#4FB3C7", "orientation": "portrait", "icons": [{"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"}, {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"}]}
+    manifest_data = {"name": "careMates - Tu Red de Apoyo", "short_name": "careMates", "description": "Gestión de pacientes y turnos para cuidadores", "start_url": "/login", "display": "standalone", "background_color": "#2D7D7D", "theme_color": "#4FB3C7", "orientation": "portrait", "icons": [{"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"}, {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"}]}
     return Response(json.dumps(manifest_data), mimetype='application/json')
 
 @app.route('/service-worker.js')
 def sw():
-    sw_code = "self.addEventListener('install', e => {e.waitUntil(caches.open('caremates-v1').then(cache => {return cache.addAll(['/']);}));});self.addEventListener('fetch', e => {e.respondWith(caches.match(e.request).then(resp => {return resp || fetch(e.request);}));});"
+    sw_code = """self.addEventListener('install', e => {
+  e.waitUntil(caches.open('caremates-v2').then(cache => {
+    return cache.addAll([
+      '/',
+      '/login',
+      '/registro',
+      '/manifest.json',
+      '/static/icon-192.png',
+      '/static/icon-512.png'
+    ])
+  }))
+});
+
+self.addEventListener('fetch', e => {
+  e.respondWith(
+    caches.match(e.request).then(resp => {
+      return resp || fetch(e.request).catch(() => {
+        return caches.match('/login')
+      })
+    })
+  )
+});"""
     return Response(sw_code, mimetype='application/javascript')
 
 @app.route('/datos_cuidador', methods=['GET', 'POST'])
