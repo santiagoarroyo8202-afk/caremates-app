@@ -214,7 +214,7 @@ def oauth_callback():
     db.session.commit()
     
     flash('Google Calendar conectado ✅')
-    return redirect(url_for('configuracion'))
+    return redirect(url_for('dashboard'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
